@@ -1,0 +1,87 @@
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+
+}
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+
+#creating new key pair
+resource "tls_private_key" "tls_key" {
+  algorithm = "RSA"
+  rsa_bits = 4096
+}
+
+resource "aws_key_pair" "my_key" {
+  key_name = "july_key"
+  public_key = tls_private_key.tls_key.public_key_openssh
+}
+
+resource "local_file" "file_for_storing_private_key" {
+  filename = "july_key.pem"
+  content = tls_private_key.tls_key.private_key_pem
+}
+
+#creating new sg
+
+resource "aws_security_group" "my_sg" {
+  name = "tf_sg"
+  description = "security group created via terraform script"
+  vpc_id = "vpc-04444c918fc9faa3e"
+
+  ingress {
+    description = "allowing http"
+    from_port = 80
+    to_port = 80
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "allowing https"
+    from_port = 443
+    to_port = 443
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "allowing ssh"
+    from_port = 22
+    to_port = 22
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "allowing all outbound traffic"
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+#creating ec-2 instance
+resource "aws_instance" "my_ec2"{
+  ami = "ami-0f918f7e67a3323f0"
+  instance_type = "t2.micro"
+  key_name = aws_key_pair.my_key.key_name
+  
+  availability_zone = "ap-south-1a"
+  associate_public_ip_address = "false"
+  vpc_security_group_ids = [aws_security_group.my_sg.id]
+
+  tags = {
+    Name = "tf_ec2"
+    Team = "DevOps"
+    Manager = "SunilA"
+  }
+}
